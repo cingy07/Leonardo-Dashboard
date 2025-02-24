@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # API Service - The main FastAPI application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: leonardo-dashboard-api
+    container_name: leonardo-api
+    environment:
+      - API_KEY=${API_KEY}
+      - GOOGLE_CIVIC_API_KEY=${GOOGLE_CIVIC_API_KEY}
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
+      - DEBUG=False
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - leonardo-network
+
+  # Redis Service - For caching and rate limiting
+  redis:
+    image: redis:6.2-alpine
+    container_name: leonardo-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - leonardo-network
+
+  # Scraper Service - For updating committee data
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    image: leonardo-dashboard-scraper
+    container_name: leonardo-scraper
+    environment:
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - api
+    deploy:
+      restart_policy:
+        condition: none
+    networks:
+      - leonardo-network
+
+  # Prometheus - For metrics collection
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: leonardo-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - leonardo-network
+
+  # Grafana - For metrics visualization
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: leonardo-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - leonardo-network
+
+volumes:
+  redis-data:
+    name: leonardo-redis-data
+  prometheus-data:
+    name: leonardo-prometheus-data
+  grafana-data:
+    name: leonardo-grafana-data
+
+networks:
+  leonardo-network:
+    name: leonardo-network
+    driver: bridge
