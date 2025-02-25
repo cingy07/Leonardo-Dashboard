@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 try:
     from app.core.config import settings
     from app.core.logging import setup_logging
-    from app.services import congressional_service, cache_service
     
     # Initialize application logging with custom configuration
     setup_logging()
@@ -45,9 +44,8 @@ try:
         "settings": settings.model_dump()  # Changed from dict() to model_dump()
     }
     
-    # Initialize core services
-    congressional_service.initialize()
-    cache_service.initialize()
+    # Import services after setting up the environment
+    from app.services import congressional_service, cache_service
     
     # Export the main application components that should be available when importing the package
     __all__ = [

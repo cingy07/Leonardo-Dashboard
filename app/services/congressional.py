@@ -12,8 +12,10 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError, ValidationError
-from app.services.cache import cache_service
-from app.services.metrics import metrics_service
+
+# Import the class instead of the instance
+from app.services.cache import CacheService
+from app.services.metrics import MetricsService
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,15 @@ class CongressionalService:
         self.api_url = settings.GOOGLE_CIVIC_API_URL
         self.committee_data: Dict[str, List[str]] = {}
         self.last_committee_update: Optional[datetime] = None
+        self.cache_service = None
+        self.metrics_service = None
+        
+    def initialize(self):
+        """Initialize services and load data."""
+        # Importing here to avoid circular imports
+        from app.services import cache_service, metrics_service
+        self.cache_service = cache_service
+        self.metrics_service = metrics_service
         
         # Load committee data on initialization
         self.load_committee_data()
@@ -71,9 +82,14 @@ class CongressionalService:
             ExternalServiceError: If the API call fails
             ValidationError: If the ZIP code is invalid
         """
+        # Ensure cache service is initialized
+        if self.cache_service is None:
+            from app.services import cache_service
+            self.cache_service = cache_service
+            
         # Check cache first
         cache_key = f"rep_info:{zip_code}"
-        cached_data = await cache_service.get(cache_key)
+        cached_data = await self.cache_service.get(cache_key)
         if cached_data:
             return cached_data
         
@@ -95,10 +111,11 @@ class CongressionalService:
                 representative_info = self._process_civic_api_response(data)
                 
                 # Cache the result
-                await cache_service.set(cache_key, representative_info)
+                await self.cache_service.set(cache_key, representative_info)
                 
                 # Update metrics
-                await metrics_service.record_api_call("civic_api", response.status_code)
+                if self.metrics_service:
+                    await self.metrics_service.record_api_call("civic_api", response.status_code)
                 
                 return representative_info
                 

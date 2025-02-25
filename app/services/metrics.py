@@ -22,7 +22,12 @@ class MetricsService:
     
     def __init__(self):
         """Initialize the metrics service."""
-        self.redis = redis.from_url(settings.REDIS_URL)
+        self.redis_client = None
+        
+    def initialize(self):
+        """Initialize connections and setup metrics service."""
+        self.redis_client = redis.from_url(settings.REDIS_URL)
+        logger.info("Metrics service initialized")
         
     async def record_request_time(self, time_ms: float, endpoint: Optional[str] = None) -> None:
         """
@@ -33,22 +38,25 @@ class MetricsService:
             endpoint: Optional endpoint identifier
         """
         try:
+            if self.redis_client is None:
+                self.initialize()
+                
             # Get the current day for daily stats
             today = datetime.utcnow().strftime("%Y-%m-%d")
             
             # Update total requests
-            self.redis.incr("metrics:requests_total")
-            self.redis.incr(f"metrics:requests:{today}")
+            self.redis_client.incr("metrics:requests_total")
+            self.redis_client.incr(f"metrics:requests:{today}")
             
             # Record response time
-            self.redis.lpush("metrics:response_times", time_ms)
-            self.redis.ltrim("metrics:response_times", 0, 999)  # Keep last 1000 times
+            self.redis_client.lpush("metrics:response_times", time_ms)
+            self.redis_client.ltrim("metrics:response_times", 0, 999)  # Keep last 1000 times
             
             # If endpoint is specified, record endpoint-specific metrics
             if endpoint:
-                self.redis.incr(f"metrics:endpoint:{endpoint}:count")
-                self.redis.lpush(f"metrics:endpoint:{endpoint}:times", time_ms)
-                self.redis.ltrim(f"metrics:endpoint:{endpoint}:times", 0, 99)  # Keep last 100
+                self.redis_client.incr(f"metrics:endpoint:{endpoint}:count")
+                self.redis_client.lpush(f"metrics:endpoint:{endpoint}:times", time_ms)
+                self.redis_client.ltrim(f"metrics:endpoint:{endpoint}:times", 0, 99)  # Keep last 100
                 
         except Exception as e:
             logger.error(f"Error recording request time: {str(e)}")
@@ -63,20 +71,23 @@ class MetricsService:
             time_ms: Optional response time in milliseconds
         """
         try:
+            if self.redis_client is None:
+                self.initialize()
+                
             # Record call
-            self.redis.incr(f"metrics:api:{api_name}:calls")
+            self.redis_client.incr(f"metrics:api:{api_name}:calls")
             
             # Record success/failure
             if 200 <= status_code < 300:
-                self.redis.incr(f"metrics:api:{api_name}:success")
+                self.redis_client.incr(f"metrics:api:{api_name}:success")
             else:
-                self.redis.incr(f"metrics:api:{api_name}:error")
-                self.redis.incr(f"metrics:api:{api_name}:error:{status_code}")
+                self.redis_client.incr(f"metrics:api:{api_name}:error")
+                self.redis_client.incr(f"metrics:api:{api_name}:error:{status_code}")
                 
             # Record response time if provided
             if time_ms is not None:
-                self.redis.lpush(f"metrics:api:{api_name}:times", time_ms)
-                self.redis.ltrim(f"metrics:api:{api_name}:times", 0, 99)
+                self.redis_client.lpush(f"metrics:api:{api_name}:times", time_ms)
+                self.redis_client.ltrim(f"metrics:api:{api_name}:times", 0, 99)
                 
         except Exception as e:
             logger.error(f"Error recording API call: {str(e)}")
@@ -89,14 +100,17 @@ class MetricsService:
             hit: True for a cache hit, False for a miss
         """
         try:
+            if self.redis_client is None:
+                self.initialize()
+                
             # Increment total cache access counter
-            self.redis.incr("metrics:cache:total")
+            self.redis_client.incr("metrics:cache:total")
             
             # Increment hit or miss counter
             if hit:
-                self.redis.incr("metrics:cache:hits")
+                self.redis_client.incr("metrics:cache:hits")
             else:
-                self.redis.incr("metrics:cache:misses")
+                self.redis_client.incr("metrics:cache:misses")
                 
         except Exception as e:
             logger.error(f"Error recording cache event: {str(e)}")
@@ -109,8 +123,11 @@ class MetricsService:
             Percentage of cache hits
         """
         try:
-            total = int(self.redis.get("metrics:cache:total") or 0)
-            hits = int(self.redis.get("metrics:cache:hits") or 0)
+            if self.redis_client is None:
+                self.initialize()
+                
+            total = int(self.redis_client.get("metrics:cache:total") or 0)
+            hits = int(self.redis_client.get("metrics:cache:hits") or 0)
             
             if total == 0:
                 return 0.0
@@ -129,10 +146,13 @@ class MetricsService:
             Percentage of requests resulting in errors
         """
         try:
+            if self.redis_client is None:
+                self.initialize()
+                
             # Get stats for the past day
             today = datetime.utcnow().strftime("%Y-%m-%d")
-            requests = int(self.redis.get(f"metrics:requests:{today}") or 0)
-            errors = int(self.redis.get(f"metrics:errors:{today}") or 0)
+            requests = int(self.redis_client.get(f"metrics:requests:{today}") or 0)
+            errors = int(self.redis_client.get(f"metrics:errors:{today}") or 0)
             
             if requests == 0:
                 return 0.0
@@ -151,14 +171,17 @@ class MetricsService:
             Average response time in milliseconds
         """
         try:
+            if self.redis_client is None:
+                self.initialize()
+                
             # Get the last 100 response times
-            times = self.redis.lrange("metrics:response_times", 0, 99)
+            times = self.redis_client.lrange("metrics:response_times", 0, 99)
             
             if not times:
                 return 0.0
                 
             times = [float(t) for t in times]
-            return mean(times)
+            return sum(times) / len(times)
             
         except Exception as e:
             logger.error(f"Error calculating average response time: {str(e)}")
@@ -175,8 +198,11 @@ class MetricsService:
             Metric value
         """
         try:
+            if self.redis_client is None:
+                self.initialize()
+                
             if metric_name == "requests_total":
-                return int(self.redis.get("metrics:requests_total") or 0)
+                return int(self.redis_client.get("metrics:requests_total") or 0)
                 
             elif metric_name == "avg_response_time":
                 return await self.get_average_response_time()
@@ -189,7 +215,7 @@ class MetricsService:
                 
             else:
                 # Try to get the metric directly from Redis
-                value = self.redis.get(f"metrics:{metric_name}")
+                value = self.redis_client.get(f"metrics:{metric_name}")
                 if value is not None:
                     try:
                         return int(value)

@@ -1,0 +1,37 @@
+2025-02-24 22:29:54,960 - root - INFO - Logging configured: level=INFO, file=enabled
+2025-02-24 22:29:54,961 - app - INFO - Starting Congressional Information Dashboard v1.0.0
+2025-02-24 22:29:54,965 - app - CRITICAL - Failed to initialize application: 'CacheService' object has no attribute 'initialize'
+2025-02-24 22:30:04,934 - root - INFO - Logging configured: level=INFO, file=enabled
+2025-02-24 22:30:04,934 - app - INFO - Starting Congressional Information Dashboard v1.0.0
+2025-02-24 22:30:04,939 - app.services.cache - INFO - Cache service initialized
+2025-02-24 22:30:04,939 - app - INFO - Application initialization completed successfully
+2025-02-24 22:30:23,349 - root - INFO - Logging configured: level=INFO, file=enabled
+2025-02-24 22:30:23,350 - app - INFO - Starting Congressional Information Dashboard v1.0.0
+2025-02-24 22:30:23,353 - app.services.cache - INFO - Cache service initialized
+2025-02-24 22:30:23,354 - app - INFO - Application initialization completed successfully
+2025-02-24 22:30:25,956 - root - INFO - Logging configured: level=INFO, file=enabled
+2025-02-24 22:30:25,956 - app - INFO - Starting Congressional Information Dashboard v1.0.0
+2025-02-24 22:30:26,624 - app.services.cache - INFO - Cache service initialized
+2025-02-24 22:30:26,624 - app.services - ERROR - Error initializing services: 'MetricsService' object has no attribute 'initialize'
+2025-02-24 22:30:26,624 - app - INFO - Application initialization completed successfully
+2025-02-24 22:30:44,058 - root - INFO - Logging configured: level=INFO, file=enabled
+2025-02-24 22:30:44,059 - app - INFO - Starting Congressional Information Dashboard v1.0.0
+2025-02-24 22:30:44,938 - app.services.cache - INFO - Cache service initialized
+2025-02-24 22:30:44,938 - app.services - ERROR - Error initializing services: 'MetricsService' object has no attribute 'initialize'
+2025-02-24 22:30:44,939 - app - INFO - Application initialization completed successfully
+2025-02-24 22:30:44,999 - app.main - INFO - Application starting up
+2025-02-24 22:31:15,929 - root - INFO - Logging configured: level=INFO, file=enabled
+2025-02-24 22:31:15,931 - app - INFO - Starting Congressional Information Dashboard v1.0.0
+2025-02-24 22:31:16,583 - app.services.cache - INFO - Cache service initialized
+2025-02-24 22:31:16,584 - app.services - ERROR - Error initializing services: 'MetricsService' object has no attribute 'initialize'
+2025-02-24 22:31:16,584 - app - INFO - Application initialization completed successfully
+2025-02-24 22:31:16,650 - app.main - INFO - Application starting up
+2025-02-24 22:33:11,549 - root - INFO - Logging configured: level=INFO, file=enabled
+2025-02-24 22:33:11,550 - app - INFO - Starting Congressional Information Dashboard v1.0.0
+2025-02-24 22:33:27,678 - root - INFO - Logging configured: level=INFO, file=enabled
+2025-02-24 22:33:27,679 - app - INFO - Starting Congressional Information Dashboard v1.0.0
+2025-02-24 22:33:28,345 - app.services.cache - INFO - Cache service initialized
+2025-02-24 22:33:28,345 - app.services.metrics - INFO - Metrics service initialized
+2025-02-24 22:33:28,349 - app - INFO - Application initialization completed successfully
+2025-02-24 22:33:28,412 - app.main - INFO - Application starting up
+2025-02-24 22:33:28,413 - app.main - INFO - Application startup complete
