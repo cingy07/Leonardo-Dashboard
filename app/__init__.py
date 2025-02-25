@@ -42,7 +42,7 @@ try:
         "author": __author__,
         "description": __description__,
         "data_directory": str(data_dir),
-        "settings": settings.dict()
+        "settings": settings.model_dump()  # Changed from dict() to model_dump()
     }
     
     # Initialize core services

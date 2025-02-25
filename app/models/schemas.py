@@ -6,7 +6,7 @@ used in the application. Each model includes detailed field descriptions,
 validation rules, and examples to ensure data consistency.
 """
 
-from pydantic import BaseModel, Field, validator, constr
+from pydantic import BaseModel, Field, field_validator, constr  # Changed validator to field_validator
 from typing import List, Optional, Dict
 from datetime import datetime
 import re
@@ -24,7 +24,7 @@ class ZipRequest(BaseModel):
             "zip_codes": ["20001", "20002"]
         }
     """
-    zip_codes: List[constr(regex="^[0-9]{5}$")] = Field(
+    zip_codes: List[constr(pattern="^[0-9]{5}$")] = Field(  # Changed regex to pattern
         ...,
         description="List of 5-digit ZIP codes",
         min_items=1,
@@ -32,7 +32,8 @@ class ZipRequest(BaseModel):
         example=["20001", "20002"]
     )
 
-    @validator("zip_codes")
+    @field_validator("zip_codes")  # Changed validator to field_validator
+    @classmethod  # Added classmethod decorator
     def remove_duplicates(cls, v):
         """Remove duplicate ZIP codes while preserving order"""
         return list(dict.fromkeys(v))
@@ -81,7 +82,7 @@ class RepresentativeResponse(BaseModel):
     district: Optional[str] = Field(
         None,
         description="Congressional district",
-        regex="^[A-Z]{2}-[0-9]{1,2}$"
+        pattern="^[A-Z]{2}-[0-9]{1,2}$"  # Changed regex to pattern
     )
     committees: List[str] = Field(
         default_factory=list,
@@ -89,7 +90,8 @@ class RepresentativeResponse(BaseModel):
     )
     error: Optional[str] = Field(None, description="Error message if lookup failed")
 
-    @validator("district")
+    @field_validator("district")  # Changed validator to field_validator
+    @classmethod  # Added classmethod decorator
     def validate_district_format(cls, v):
         """Ensure district follows STATE-NUMBER format"""
         if v is not None and not re.match(r"^[A-Z]{2}-[0-9]{1,2}$", v):
@@ -168,7 +170,8 @@ class MetricsResponse(BaseModel):
         description="Metrics collection timestamp"
     )
 
-    @validator("error_rate", "cache_hit_rate")
+    @field_validator("error_rate", "cache_hit_rate")  # Changed validator to field_validator
+    @classmethod  # Added classmethod decorator
     def validate_percentage(cls, v):
         """Ensure percentage values are between 0 and 100"""
         if not 0 <= v <= 100:

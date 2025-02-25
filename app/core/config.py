@@ -4,7 +4,7 @@ Handles loading and validating configuration from environment variables and conf
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 import json
 
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # Security
     API_KEY: str
     API_KEY_NAME: str = "X-API-Key"
-    ALLOWED_HOSTS: list[str] = ["*"]
+    ALLOWED_HOSTS: List[str] = ["*"]
     
     # External Services
     GOOGLE_CIVIC_API_KEY: str
@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     def create_directories(cls, v):
         if isinstance(v, Path):
             v.parent.mkdir(parents=True, exist_ok=True)
+        return v
+    
+    @field_validator("ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def parse_allowed_hosts(cls, v):
+        if isinstance(v, str):
+            return [host.strip() for host in v.split(",")]
         return v
     
     model_config = SettingsConfigDict(

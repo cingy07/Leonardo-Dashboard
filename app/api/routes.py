@@ -48,7 +48,7 @@ async def lookup_representatives(
     """
     try:
         # Log the incoming request
-        log_request("lookup_representatives", request.dict())
+        log_request("lookup_representatives", request.model_dump())  # Changed from dict() to model_dump()
         
         # Check cache first
         cache_key = f"zip_lookup:{','.join(request.zip_codes)}"

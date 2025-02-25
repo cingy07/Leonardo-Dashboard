@@ -1,93 +1,99 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict
-import requests
-import os
-import json
-from dotenv import load_dotenv
+"""
+Leonardo Dashboard - Main Application Module
+This module initializes the FastAPI application with all required middleware,
+routes, and event handlers.
+"""
 
-# ✅ Load API keys from .env file
-load_dotenv()
-GOOGLE_CIVIC_API_KEY = os.getenv("GOOGLE_CIVIC_API_KEY")
+import logging
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+import redis
+import time
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+from app.core.config import settings
+from app.api import api_router
+from app.core.middleware import LoggingMiddleware, ErrorHandlingMiddleware
+from app.services import cache_service, congressional_service, metrics_service
 
-# Request model
-class ZipRequest(BaseModel):
-    zip_codes: List[str]
+logger = logging.getLogger(__name__)
 
-# ✅ Get representative from Google Civic API
-def get_district_and_representative(zip_code: str):
-    google_api_key = os.getenv("GOOGLE_CIVIC_API_KEY")
-    url = f"https://www.googleapis.com/civicinfo/v2/representatives?address={zip_code}&roles=legislatorLowerBody&key={google_api_key}"
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for the FastAPI application.
+    Handles startup and shutdown events.
+    """
+    # Startup: Initialize services and connections
+    logger.info("Application starting up")
+    
+    # Initialize Redis connection
+    app.state.redis = redis.from_url(settings.REDIS_URL)
+    
+    # Initialize services
+    await congressional_service.load_committee_data()
+    
+    logger.info("Application startup complete")
+    
+    yield
+    
+    # Shutdown: Clean up resources
+    logger.info("Application shutting down")
+    app.state.redis.close()
+    logger.info("Application shutdown complete")
 
-    response = requests.get(url)
-    print(f"Google API Response for ZIP {zip_code}: {response.status_code} - {response.text}")
+# Create FastAPI application
+app = FastAPI(
+    title=settings.API_TITLE,
+    description=settings.API_DESCRIPTION,
+    version=settings.API_VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan
+)
 
-    if response.status_code == 200:
-        try:
-            data = response.json()
-            divisions = data.get("divisions", {})
-            district_number, state_abbreviation = None, None
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in settings.ALLOWED_HOSTS],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-            for key in divisions.keys():
-                if "cd:" in key:
-                    district_number = key.split("cd:")[-1]
-                    state_abbreviation = key.split("/state:")[-1].split("/")[0].upper()
+# Add custom middleware
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(ErrorHandlingMiddleware)
 
-            officials = data.get("officials", [])
-            if officials:
-                representative = officials[0]
-                representative_name = representative.get("name", "Unknown")
-                party = representative.get("party", "Unknown")
-                return district_number, state_abbreviation, representative_name, party
+# Add request timing middleware
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    
+    # Record metrics if not a docs or health check request
+    path = request.url.path
+    if not path.startswith(("/docs", "/redoc", "/openapi.json", "/health")):
+        await metrics_service.record_request_time(process_time * 1000)
+    
+    return response
 
-        except Exception as e:
-            print(f"Error processing Google Civic API response: {e}")
+# Include API routes
+app.include_router(api_router)
 
-    return None, None, None, None
+@app.get("/")
+async def root():
+    """Root endpoint that provides basic API information"""
+    return {
+        "app": settings.API_TITLE,
+        "version": settings.API_VERSION,
+        "description": settings.API_DESCRIPTION,
+        "docs": "/docs"
+    }
 
-# ✅ Get committees from scraped JSON data
-def get_committees(representative_name: str):
-    try:
-        with open("house_committees.json", "r") as house_file, open("senate_committees.json", "r") as senate_file:
-            house_committees = json.load(house_file)
-            senate_committees = json.load(senate_file)
-
-        committees = []
-
-        for committee, members in house_committees.items():
-            if representative_name in members:
-                committees.append(committee)
-
-        for committee, members in senate_committees.items():
-            if representative_name in members:
-                committees.append(committee)
-
-        print(f"Committees for {representative_name}: {committees}")
-        return committees
-
-    except Exception as e:
-        print(f"Error loading committee files: {e}")
-        return []
-
-@app.post("/lookup")
-def lookup_zipcodes(request: ZipRequest):
-    results = []
-    for zip_code in request.zip_codes:
-        district, state, representative_name, party = get_district_and_representative(zip_code)
-        if not district or not state or not representative_name:
-            results.append({"zip_code": zip_code, "error": "Representative data not found"})
-            continue
-
-        committees = get_committees(representative_name)
-
-        results.append({
-            "zip_code": zip_code,
-            "name": representative_name,
-            "party": party,
-            "district": f"{state}-{district}",
-            "committees": committees
-        })
-
-    return {"results": results}
+# If this file is run directly, start the application with Uvicorn
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
